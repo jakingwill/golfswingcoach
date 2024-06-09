@@ -49,8 +49,9 @@ def upload_frames_to_gemini(frame_paths):
 # Define function to generate golf swing analysis using Gemini
 def analyze_golf_swing(files, custom_prompt):
     prompt = [custom_prompt]
-    prompt.append("The following images are frames from a video of the golf swing:")
-    prompt.extend(files)
+    prompt.append("The following are images extracted from a video of the golf swing. Please analyze these frames as part of the golf swing video:")
+    for file in files:
+        prompt.append(f"![]({file})")
     prompt.append("[END]\n\nHere is the golf swing video")
 
     model = genai.GenerativeModel(model_name='gemini-1.5-flash')
