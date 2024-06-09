@@ -1,4 +1,5 @@
 import os
+import subprocess
 import google.generativeai as genai
 import requests
 from flask import Flask, request, jsonify
@@ -19,43 +20,40 @@ def upload_image_to_gemini(image_file_path):
     return response.uri
 
 # Define function to extract frames from video
-def extract_video_frames(video_path, output_dir, frame_interval=30):
+def extract_video_frames(video_path, output_dir, frame_rate=5):  # Extract every 5th frame
     os.makedirs(output_dir, exist_ok=True)
     cap = cv2.VideoCapture(video_path)
     count = 0
-    frame_count = 0
     success = True
-    frame_paths = []
-
+    frames = []
     while success:
         success, frame = cap.read()
-        if success and count % frame_interval == 0:
-            frame_path = os.path.join(output_dir, f'frame_{frame_count:04d}.jpg')
+        if count % frame_rate == 0 and success:
+            frame_path = os.path.join(output_dir, f'frame_{count:04d}.jpg')
             cv2.imwrite(frame_path, frame)
-            frame_paths.append(frame_path)
-            frame_count += 1
+            frames.append(frame_path)
         count += 1
     cap.release()
-    return frame_paths
+    print(f"Extracted frames: {frames}")
+    return frames
 
 # Define function to upload extracted frames to Gemini
-def upload_frames_to_gemini(frame_paths):
-    files = []
-    for frame_path in frame_paths:
-        image_gemini_file = upload_image_to_gemini(frame_path)
-        files.append(image_gemini_file)
-    return files
+def upload_frames_to_gemini(frames):
+    uploaded_files = []
+    for frame in frames:
+        image_gemini_file = upload_image_to_gemini(frame)
+        uploaded_files.append(image_gemini_file)
+        print(f"Uploaded frame to Gemini: {image_gemini_file}")
+    return uploaded_files
 
 # Define function to generate golf swing analysis using Gemini
 def analyze_golf_swing(files, custom_prompt):
-    prompt = [custom_prompt]
-    prompt.append("The following are images extracted from a video of the golf swing. Please analyze these frames as part of the golf swing video:")
-    for file in files:
-        prompt.append(f"![]({file})")
-    prompt.append("[END]\n\nHere is the golf swing video")
+    # Add image URIs to the prompt
+    image_uris = '\n'.join(files)
+    full_prompt = f"{custom_prompt}\n\nImages:\n{image_uris}\n\n[END]\n\nHere are the images of the golf swing"
 
     model = genai.GenerativeModel(model_name='gemini-1.5-flash')
-    response = model.generate_content(prompt)
+    response = model.generate_content(full_prompt)
 
     return response.text
 
@@ -75,7 +73,7 @@ def send_to_airtable(record_id, analysis):
 def process_video_async(video_path, record_id, custom_prompt):
     def process():
         try:
-            print(f"Received video_url: {video_path}")
+            print(f"Received video_path: {video_path}")
             print(f"Received record_id: {record_id}")
             print(f"Received custom_prompt: {custom_prompt}")
 
@@ -84,16 +82,14 @@ def process_video_async(video_path, record_id, custom_prompt):
             os.makedirs(output_dir, exist_ok=True)
 
             # Extract frames from the video
-            frame_paths = extract_video_frames(video_path, output_dir, frame_interval=30)
-            print(f"Extracted frames: {frame_paths}")
+            frames = extract_video_frames(video_path, output_dir)
 
             # Upload extracted frames to Gemini
-            files = upload_frames_to_gemini(frame_paths)
-            print(f"Uploaded frames to Gemini: {files}")
+            files = upload_frames_to_gemini(frames)
 
             # Generate golf swing analysis using Gemini
             analysis = analyze_golf_swing(files, custom_prompt)
-            print(f"Analysis: {analysis}")
+            print(f"Analysis result: {analysis}")
 
             # Send analysis to Airtable
             send_to_airtable(record_id, analysis)
