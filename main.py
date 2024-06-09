@@ -6,6 +6,7 @@ from flask import Flask, request, jsonify
 from threading import Thread
 import cv2
 from dotenv import load_dotenv
+import traceback
 
 # Load environment variables from .env file
 load_dotenv()
@@ -22,6 +23,19 @@ def upload_image_to_gemini(image_file_path):
     with open(image_file_path, 'rb') as file:
         response = genai.upload_file(image_file_path)
     return response.uri
+
+# Define function to download video
+def download_video(video_url, video_path):
+    try:
+        response = requests.get(video_url)
+        response.raise_for_status()
+        with open(video_path, 'wb') as file:
+            file.write(response.content)
+        return True
+    except Exception as e:
+        print(f"Failed to download video: {e}")
+        traceback.print_exc()
+        return False
 
 # Define function to extract frames from video
 def extract_video_frames(video_path, output_dir, frame_rate=1):
@@ -74,12 +88,18 @@ def send_to_airtable(record_id, analysis):
         print(f"Failed to send data to Airtable: {response.status_code}, {response.text}")
 
 # Function to process the video asynchronously
-def process_video_async(video_path, record_id, custom_prompt):
+def process_video_async(video_url, record_id, custom_prompt):
     def process():
         try:
-            print(f"Received video_path: {video_path}")
+            print(f"Received video_url: {video_url}")
             print(f"Received record_id: {record_id}")
             print(f"Received custom_prompt: {custom_prompt}")
+
+            # Download the video
+            video_path = 'temp_video.mp4'
+            if not download_video(video_url, video_path):
+                print(f"Failed to download video for record ID: {record_id}")
+                return
 
             # Create an 'output' directory if it doesn't exist
             output_dir = 'output'
@@ -99,6 +119,7 @@ def process_video_async(video_path, record_id, custom_prompt):
             send_to_airtable(record_id, analysis)
         except Exception as e:
             print(f"An error occurred during processing: {e}")
+            traceback.print_exc()
 
     # Start a new thread to process the video
     thread = Thread(target=process)
@@ -108,20 +129,20 @@ def process_video_async(video_path, record_id, custom_prompt):
 def process_video_route():
     data = request.get_json()
     print(f"Received data: {data}")
-    video_path = data.get('video_path')
+    video_url = data.get('video_path')
     record_id = data.get('record_id')
     custom_prompt = data.get('custom_prompt')
 
-    if not video_path:
-        print("Missing video_path")
+    if not video_url:
+        print("Missing video_url")
     if not record_id:
         print("Missing record_id")
 
-    if video_path and record_id:
-        process_video_async(video_path, record_id, custom_prompt)
+    if video_url and record_id:
+        process_video_async(video_url, record_id, custom_prompt)
         return jsonify({"status": "processing started"}), 200
     else:
-        return jsonify({"error": "Missing video_path or record_id"}), 400
+        return jsonify({"error": "Missing video_url or record_id"}), 400
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
