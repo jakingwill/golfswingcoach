@@ -1,5 +1,4 @@
 import os
-import subprocess
 import google.generativeai as genai
 import requests
 from flask import Flask, request, jsonify
@@ -20,7 +19,7 @@ def upload_image_to_gemini(image_file_path):
     return response.uri
 
 # Define function to extract frames from video
-def extract_video_frames(video_path, output_dir, frame_interval=10):
+def extract_video_frames(video_path, output_dir, frame_interval=30):
     os.makedirs(output_dir, exist_ok=True)
     cap = cv2.VideoCapture(video_path)
     count = 0
@@ -50,6 +49,7 @@ def upload_frames_to_gemini(frame_paths):
 # Define function to generate golf swing analysis using Gemini
 def analyze_golf_swing(files, custom_prompt):
     prompt = [custom_prompt]
+    prompt.append("The following images are frames from a video of the golf swing:")
     prompt.extend(files)
     prompt.append("[END]\n\nHere is the golf swing video")
 
@@ -83,7 +83,7 @@ def process_video_async(video_path, record_id, custom_prompt):
             os.makedirs(output_dir, exist_ok=True)
 
             # Extract frames from the video
-            frame_paths = extract_video_frames(video_path, output_dir, frame_interval=10)
+            frame_paths = extract_video_frames(video_path, output_dir, frame_interval=30)
             print(f"Extracted frames: {frame_paths}")
 
             # Upload extracted frames to Gemini
