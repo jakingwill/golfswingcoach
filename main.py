@@ -22,6 +22,7 @@ airtable_webhook_url = os.getenv('AIRTABLE_WEBHOOK')
 def upload_image_to_gemini(image_file_path):
     with open(image_file_path, 'rb') as file:
         response = genai.upload_file(image_file_path)
+        print(f"Uploaded frame to Gemini: {response.uri}")  # Added logging
     return response.uri
 
 # Define function to download video
@@ -55,17 +56,14 @@ def extract_video_frames(video_path, output_dir, frame_rate=1):
         count += 1
     cap.release()
     print("Extracted frames:", extracted_frames)  # Added logging
-    return output_dir
+    return extracted_frames  # Changed to return the list of extracted frames
 
 # Define function to upload extracted frames to Gemini
-def upload_frames_to_gemini(output_dir):
+def upload_frames_to_gemini(extracted_frames):
     files = []
-    for filename in sorted(os.listdir(output_dir)):
-        if filename.endswith('.jpg'):
-            image_file_path = os.path.join(output_dir, filename)
-            image_gemini_file = upload_image_to_gemini(image_file_path)
-            files.append(image_gemini_file)
-            print(f"Uploaded frame to Gemini: {image_gemini_file}")  # Added logging
+    for frame_path in extracted_frames:
+        image_gemini_file = upload_image_to_gemini(frame_path)
+        files.append(image_gemini_file)
     return files
 
 # Define function to generate golf swing analysis using Gemini
@@ -107,15 +105,11 @@ def process_video_async(video_url, record_id, custom_prompt):
                 print(f"Failed to download video for record ID: {record_id}")
                 return
 
-            # Create an 'output' directory if it doesn't exist
-            output_dir = 'output'
-            os.makedirs(output_dir, exist_ok=True)
-
             # Extract frames from the video
-            frames_dir = extract_video_frames(video_path, output_dir)
+            extracted_frames = extract_video_frames(video_path, 'output')
 
             # Upload extracted frames to Gemini
-            files = upload_frames_to_gemini(frames_dir)
+            files = upload_frames_to_gemini(extracted_frames)
 
             # Generate golf swing analysis using Gemini
             analysis = analyze_golf_swing(files, custom_prompt)
