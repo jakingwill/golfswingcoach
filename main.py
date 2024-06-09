@@ -31,6 +31,7 @@ def download_video(video_url, video_path):
         response.raise_for_status()
         with open(video_path, 'wb') as file:
             file.write(response.content)
+        print(f"Video downloaded successfully to {video_path}")
         return True
     except Exception as e:
         print(f"Failed to download video: {e}")
@@ -43,13 +44,17 @@ def extract_video_frames(video_path, output_dir, frame_rate=1):
     cap = cv2.VideoCapture(video_path)
     count = 0
     success = True
+    extracted_frames = []
     while success:
         success, frame = cap.read()
         if count % frame_rate == 0 and success:
             frame_path = os.path.join(output_dir, f'frame_{count:04d}.jpg')
             cv2.imwrite(frame_path, frame)
+            extracted_frames.append(frame_path)
+            print(f"Extracted frame: {frame_path}")  # Added logging
         count += 1
     cap.release()
+    print("Extracted frames:", extracted_frames)  # Added logging
     return output_dir
 
 # Define function to upload extracted frames to Gemini
@@ -60,6 +65,7 @@ def upload_frames_to_gemini(output_dir):
             image_file_path = os.path.join(output_dir, filename)
             image_gemini_file = upload_image_to_gemini(image_file_path)
             files.append(image_gemini_file)
+            print(f"Uploaded frame to Gemini: {image_gemini_file}")  # Added logging
     return files
 
 # Define function to generate golf swing analysis using Gemini
