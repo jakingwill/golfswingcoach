@@ -5,13 +5,17 @@ import requests
 from flask import Flask, request, jsonify
 from threading import Thread
 import cv2
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = Flask(__name__)
 
 # Initialize Gemini API client with your API key
-gemini_api_key = os.environ['GEMINI_API_KEY']
+gemini_api_key = os.getenv('GEMINI_API_KEY')
 client = genai.configure(api_key=gemini_api_key)
-airtable_webhook_url = os.environ['AIRTABLE_WEBHOOK']
+airtable_webhook_url = os.getenv('AIRTABLE_WEBHOOK')
 
 # Define functions to upload image files to Gemini
 def upload_image_to_gemini(image_file_path):
@@ -48,10 +52,11 @@ def upload_frames_to_gemini(output_dir):
 def analyze_golf_swing(files, custom_prompt):
     prompt = [custom_prompt]
     prompt.extend(files)
-    prompt.append("[END]\n\nHere is the golf swing video")
+    prompt.append("[END]\n\nHere is the golf swing analysis")
 
     model = genai.GenerativeModel(model_name='gemini-1.5-flash')
     response = model.generate_content(prompt)
+    print("Response from Gemini:", response.text)  # Added logging
 
     return response.text
 
@@ -61,6 +66,7 @@ def send_to_airtable(record_id, analysis):
         "record_id": record_id,
         "analysis": analysis
     }
+    print("Sending to Airtable:", data)  # Added logging
     response = requests.post(webhook_url, json=data)
     if response.status_code == 200:
         print("Successfully sent data to Airtable")
@@ -87,7 +93,7 @@ def process_video_async(video_path, record_id, custom_prompt):
 
             # Generate golf swing analysis using Gemini
             analysis = analyze_golf_swing(files, custom_prompt)
-            print(analysis)
+            print("Analysis result:", analysis)  # Added logging
 
             # Send analysis to Airtable
             send_to_airtable(record_id, analysis)
